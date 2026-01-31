@@ -329,6 +329,9 @@ def main():
 
         # Re-enable device
         uad.enable()
+        csr = uad.get_csr()  # should now work
+        print("[PASS] CSR access restored when enabled")
+
 
 
 
