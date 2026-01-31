@@ -121,75 +121,48 @@ class Uad():
         self.outcap = None
 
     def reset(self):
-        return os.system(f'{self.uad_path} com --action reset')
+        return os.system([self.uad_path, 'com', '--action', 'reset'])
 
     def disable(self):
-        return os.system(f'{self.uad_path} com --action disable')
+        return os.system([self.uad_path, 'com', '--action', 'disable'])
 
     def enable(self):
-        return os.system(f'{self.uad_path} com --action enable')
+        return os.system([self.uad_path, 'com', '--action', 'enable'])
 
     def drive_signal(self, sig_in):
-        sig_out = subprocess.check_output([self.uad_path, 'sig', '--data', str(sig_in)]).decode()
+        sig_out = subprocess.check_output([self.uad_path, 'sig', '--data', hex(sig_in)]).decode()
         return int(sig_out, 0)
 
     def get_csr(self):
-            proc = subprocess.run(
-                [self.uad_path, 'cfg', '--address', str(CSR_ADDR)],
-                capture_output=True,
-                text=True
-            )
-
-            if proc.returncode != 0:
-                # expected when device is disabled
-                return None
-
-            csr_bin = int(proc.stdout, 0)
-            self.csr = Csr(csr_bin)
-            return self.csr
+        csr_bin = subprocess.check_output([self.uad_path, 'cfg', '--address', hex(CSR_ADDR)]).decode()
+        csr_bin = int(csr_bin, 0)
+        self.csr = Csr(csr_bin)
+        return self.csr
 
     def get_coef(self):
-        proc = subprocess.run(
-            [self.uad_path, 'cfg', '--address', str(COEF_ADDR)],
-            capture_output=True,
-            text=True
-        )
-
-        if proc.returncode != 0:
-            return None
-
-        coef_bin = int(proc.stdout, 0)
+        coef_bin = subprocess.check_output([self.uad_path, 'cfg', '--address', hex(COEF_ADDR)]).decode()
+        coef_bin = int(coef_bin, 0)
         self.coef = Coef(coef_bin)
         return self.coef
 
-
     def get_outcap(self):
-        proc = subprocess.run(
-            [self.uad_path, 'cfg', '--address', str(OUTCAP_ADDR)],
-            capture_output=True,
-            text=True
-        )
-
-        if proc.returncode != 0:
-            return None
-
-        outcap_bin = int(proc.stdout, 0)
+        outcap_bin = subprocess.check_output([self.uad_path, 'cfg', '--address', hex(OUTCAP_ADDR)]).decode()
+        outcap_bin = int(outcap_bin, 0)
         self.outcap = Outcap(outcap_bin)
         return self.outcap
 
-
     def set_csr(self):
-        exit_code = os.system(f'{self.uad_path} cfg --address {CSR_ADDR} --data {hex(self.csr.encode())}')
+        exit_code = os.system([self.uad_path, 'cfg', '--address', hex(CSR_ADDR), '--data', hex(self.csr.encode())])
         self.get_csr()
         return exit_code
 
     def set_coef(self):
-        exit_code = os.system(f'{self.uad_path} cfg --address {COEF_ADDR} --data {hex(self.coef.encode())}')
+        exit_code = os.system([self.uad_path, 'cfg', '--address', hex(COEF_ADDR), '--data', hex(self.coef.encode())])
         self.get_coef()
         return exit_code
 
     def set_outcap(self):
-        exit_code = os.system(f'{self.uad_path} cfg --address {OUTCAP_ADDR} --data {hex(self.outcap.encode())}')
+        exit_code = os.system([self.uad_path, 'cfg', '--address', hex(OUTCAP_ADDR), '--data', hex(self.outcap.encode())])
         self.get_outcap()
         return exit_code
 
@@ -316,20 +289,15 @@ def main():
     elif args.test == 'tc1':
         print('Running Testcase 1: Global enable/disable')
 
-        # Disable device
         uad.disable()
-
-        # Try to read CSR
         csr = uad.get_csr()
 
-        if csr is None:
-            print('[PASS] CSR access blocked when disabled')
+        print(csr)
+
+        if csr.c0en or csr.c1en or csr.c2en or csr.c3en:
+            print('[FAIL] Channel is accessible when global enable is disabled')
         else:
-            print('[FAIL] CSR access still allowed when disabled')
-
-        # Re-enable device
-        uad.enable()
-
+            print('[PASS] Channels are inaccessible when global enable is disabled')
 
 
 if __name__ == '__main__':
