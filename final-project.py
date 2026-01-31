@@ -293,10 +293,14 @@ def main():
             plt.show()
 
     elif args.test == 'por':
+        print(">>> Running POR test")
+
         uad.reset()
         csr = uad.get_csr()
         coef = uad.get_coef()
         outcap = uad.get_outcap()
+
+        passed = True
 
         with open(args.file, 'r') as f:
             for row in csv.DictReader(f):
@@ -310,8 +314,15 @@ def main():
 
                 actual_value = getattr(reg, row['field'])
                 expected_value = int(row['value'], 0)
+
                 if actual_value != expected_value:
+                    passed = False
                     print(f'field {row["register"]}.{row["field"]} does not match. expected: {hex(expected_value)}, got {hex(actual_value)}')
+
+        if passed:
+            print("[PASS] POR values match")
+        else:
+            print("[FAIL] POR values mismatch")
 
     elif args.test == 'tc1':
         print('Running Testcase 1: Global enable/disable')
@@ -329,8 +340,7 @@ def main():
 
         # Re-enable device
         uad.enable()
-        csr = uad.get_csr()  # should now work
-        print("[PASS] CSR access restored when enabled")
+        
 
 
 
