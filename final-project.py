@@ -130,8 +130,15 @@ class Uad():
         return os.system(f'{self.uad_path} com --action enable')
 
     def drive_signal(self, sig_in):
-        sig_out = subprocess.check_output([self.uad_path, 'sig', '--data', str(sig_in)]).decode()
-        return int(sig_out, 0)
+        proc = subprocess.run(
+            [self.uad_path, 'sig', '--data', str(sig_in)],
+            capture_output=True,
+            text=True
+        )
+        if proc.stdout.strip() == "":
+            return None
+        return int(proc.stdout, 0)
+
 
     def get_csr(self):
             proc = subprocess.run(
@@ -217,7 +224,12 @@ def twos_comp(num):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--instance', choices=['golden', 'impl0', 'impl1', 'impl2', 'impl3', 'impl4', 'impl5'])
-    parser.add_argument('-t', '--test', choices=['dump', 'set', 'por', 'config', 'drive', 'tc1'], help='the tests that can be run with this script')
+    parser.add_argument(
+    '-t',
+    '--test',
+    choices=['dump', 'set', 'por', 'config', 'drive', 'tc1', 'tc3'],
+    help='the tests that can be run with this script'
+    )
     parser.add_argument('-v', '--value', help='register field value to set')
     parser.add_argument('-f', '--file', help='path to csv file with the expected por register values')
     parser.add_argument('-p', '--plot', action='store_true', help='include this flag to plot when driving')
@@ -248,6 +260,8 @@ def main():
 
     elif args.test == 'config':
         csr = uad.get_csr()
+        
+        csr.fen = 1
         csr.halt = 1
         uad.set_csr()
 
@@ -340,6 +354,65 @@ def main():
 
         # Re-enable device
         uad.enable()
+
+    elif args.test == 'tc3':
+        print('Running Testcase 3: Input buffer overflow and clearing')
+
+        uad.reset()
+        uad.enable()
+
+        csr = uad.get_csr()
+        csr.fen = 1
+        csr.halt = 1
+
+        # Clear buffer first
+        csr.ibclr = 1
+        uad.set_csr()
+
+        # Turn off clear so it can count
+        csr.ibclr = 0
+        uad.set_csr()
+
+        # Drive a small number of samples
+        num_samples = 10
+        for i in range(num_samples):
+            uad.drive_signal(i)
+
+        csr = uad.get_csr()
+
+        if csr.ibcnt == num_samples:
+            print(f'[PASS] Input buffer count is {csr.ibcnt} after {num_samples} samples')
+        else:
+            print(f'[FAIL] Input buffer count mismatch: expected {num_samples}, got {csr.ibcnt}')
+
+        # Drive more samples to cause overflow
+        for i in range(300):
+            uad.drive_signal(i)
+
+        csr = uad.get_csr()
+
+        if csr.ibcnt == 255 and csr.ibovf == 1:
+            print('[PASS] Input buffer overflow detected correctly')
+        else:
+            print(f'[FAIL] Overflow behavior incorrect: ibcnt={csr.ibcnt}, ibovf={csr.ibovf}')
+
+        # Clear input buffer
+        csr.ibclr = 1
+        uad.set_csr()
+
+        csr = uad.get_csr()
+
+        if csr.ibcnt == 0 and csr.ibovf == 0:
+            print('[PASS] Input buffer cleared successfully')
+        else:
+            print(f'[FAIL] Buffer clear failed: ibcnt={csr.ibcnt}, ibovf={csr.ibovf}')
+
+
+
+
+
+
+
         
 
 
