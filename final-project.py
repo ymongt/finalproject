@@ -310,9 +310,15 @@ def main():
         print(">>> Running POR test")
 
         uad.reset()
+
+        # force clean state (avoid TC3 leftover effects)
+        uad.disable()
+        uad.enable()
+
         csr = uad.get_csr()
         coef = uad.get_coef()
         outcap = uad.get_outcap()
+
 
         passed = True
 
