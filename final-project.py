@@ -227,7 +227,7 @@ def main():
     parser.add_argument(
     '-t',
     '--test',
-    choices=['dump', 'set', 'por', 'config', 'drive', 'tc1', 'tc3'],
+    choices=['dump', 'set', 'por', 'config', 'drive', 'tc1', 'tc3','tc4'],
     help='the tests that can be run with this script'
     )
     parser.add_argument('-v', '--value', help='register field value to set')
@@ -414,12 +414,33 @@ def main():
             print(f'[FAIL] Buffer clear failed: ibcnt={csr.ibcnt}, ibovf={csr.ibovf}')
 
 
+    elif args.test == 'tc4':
+        print('Running Testcase 4: Filter bypassing')
+
+        uad.reset()
+        uad.enable()
+
+        csr = uad.get_csr()
+
+        # Bypass mode:
+        csr.fen = 0   # disable filtering
+        csr.halt = 0  # ensure not halted
+        uad.set_csr()
+
+        sig_in = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        sig_out = []
+
+        for samp in sig_in:
+            sig_out.append(uad.drive_signal(samp))
+
+        if sig_in == sig_out:
+            print('[PASS] Bypass works: output == input')
+        else:
+            print('[FAIL] Bypass failed: output != input')
+            print("Input :", sig_in)
+            print("Output:", sig_out)
 
 
-
-
-
-        
 
 
 
