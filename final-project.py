@@ -459,17 +459,33 @@ def main():
         csr.halt = 0
         uad.set_csr()
 
+        # Flush pipeline
+        for _ in range(4):
+            uad.drive_signal(0x0)
+
         sig_out_filter = []
         for samp in sig_in:
             sig_out_filter.append(uad.drive_signal(samp))
 
         # ---- PASS/FAIL CHECK ----
-        if sig_out_bypass == sig_in and sig_out_filter != sig_in:
-            print("\n[PASS] Bypass works and filter is active")
-        elif sig_out_bypass == sig_in and sig_out_filter == sig_in:
-            print("\n[FAIL] Filter ON not processing (output == input)")
+        bypass_ok = (sig_out_bypass == sig_in)
+        filter_ok = (sig_out_filter != sig_in)
+
+        print("\n==================== TC4 RESULT ====================")
+        print("Inputs     : ", [hex(x) for x in sig_in])
+        print("Bypass OUT : ", [hex(x) for x in sig_out_bypass])
+        print("Filter OUT : ", [hex(x) for x in sig_out_filter])
+
+        print("\nBypass Test  : ", "PASS" if bypass_ok else "FAIL")
+        print("Filter Active: ", "PASS" if filter_ok else "FAIL")
+
+        if bypass_ok and filter_ok:
+            print("\n>> TC4: PASS")
         else:
-            print("\n[FAIL] Bypass failed")
+            print("\n>> TC4: FAIL")
+        print("===================================================")
+
+
 
 
 
