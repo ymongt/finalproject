@@ -420,25 +420,59 @@ def main():
         uad.reset()
         uad.enable()
 
-        csr = uad.get_csr()
+        sig_in = [0x10, 0x20, 0x40, 0x80, 0x1, 0x2, 0x4, 0x8]
 
-        # Bypass mode:
-        csr.fen = 0   # disable filtering
-        csr.halt = 0  # ensure not halted
+        # ---- HALT ----
+        csr = uad.get_csr()
+        csr.halt = 1
         uad.set_csr()
 
-        sig_in = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        sig_out = []
+        # ---- LOAD COEF ----
+        with open('p0.cfg', 'r') as f:
+            coef = uad.get_coef()
+            csr = uad.get_csr()
+            for row in csv.DictReader(f):
+                setattr(csr, f'c{row["coef"]}en', int(row['en'], 0))
+                setattr(coef, f'c{row["coef"]}', int(row['value'], 0))
+        uad.set_coef()
+        uad.set_csr()
 
+        # ---- CLEAR TAPS + BUFFER ----
+        csr.tclr = 1
+        csr.ibclr = 1
+        uad.set_csr()
+
+        # Read back CSR to clear W1C bits
+        csr = uad.get_csr()
+
+        # ---- BYPASS ON ----
+        csr.fen = 0
+        csr.halt = 0
+        uad.set_csr()
+
+        sig_out_bypass = []
         for samp in sig_in:
-            sig_out.append(uad.drive_signal(samp))
+            sig_out_bypass.append(uad.drive_signal(samp))
 
-        if sig_in == sig_out:
-            print('[PASS] Bypass works: output == input')
+        # ---- BYPASS OFF ----
+        csr.fen = 1
+        csr.halt = 0
+        uad.set_csr()
+
+        sig_out_filter = []
+        for samp in sig_in:
+            sig_out_filter.append(uad.drive_signal(samp))
+
+        # ---- PASS/FAIL CHECK ----
+        if sig_out_bypass == sig_in and sig_out_filter != sig_in:
+            print("\n[PASS] Bypass works and filter is active")
+        elif sig_out_bypass == sig_in and sig_out_filter == sig_in:
+            print("\n[FAIL] Filter ON not processing (output == input)")
         else:
-            print('[FAIL] Bypass failed: output != input')
-            print("Input :", sig_in)
-            print("Output:", sig_out)
+            print("\n[FAIL] Bypass failed")
+
+
+
 
 
 
