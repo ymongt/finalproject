@@ -227,13 +227,15 @@ def main():
     parser.add_argument(
     '-t',
     '--test',
-    choices=['dump', 'set', 'por', 'config', 'drive', 'tc1', 'tc3','tc4'],
+    choices=['dump', 'set', 'por', 'config', 'drive', 'tc1', 'tc3','tc4','tc5'],
     help='the tests that can be run with this script'
     )
     parser.add_argument('-v', '--value', help='register field value to set')
     parser.add_argument('-f', '--file', help='path to csv file with the expected por register values')
     parser.add_argument('-p', '--plot', action='store_true', help='include this flag to plot when driving')
+    parser.add_argument('-c', '--cfg', nargs='+', help='path(s) to filter cfg file(s)', default=['p0.cfg'])
     args = parser.parse_args()
+    
 
     if platform.system().lower() == 'windows':
         UAD_PATH = f'.\\{args.instance}.exe'
@@ -484,6 +486,125 @@ def main():
         else:
             print("\n>> TC4: FAIL")
         print("===================================================")
+
+
+    elif args.test == 'tc5':
+        print('Running Testcase 5: Signal processing')
+
+        if args.file is None:
+            print('[ERROR] Please provide input vector file using -f')
+            return
+
+        CFG_FILE = 'p0.cfg'   # coefficient config
+        VEC_FILE = args.file # input vector
+
+        def run_instance(instance_name):
+            # Resolve path
+            if platform.system().lower() == 'windows':
+                uad_path = f'.\\{instance_name}.exe'
+            else:
+                uad_path = f'./insts/{instance_name}'
+
+            uad = Uad(uad_path)
+
+            # ---- RESET & ENABLE ----
+            uad.reset()
+            uad.enable()
+
+            # ---- HALT FILTER ----
+            csr = uad.get_csr()
+            csr.fen = 1
+            csr.halt = 1
+            uad.set_csr()
+
+            # ---- LOAD COEFFICIENTS ----
+            with open(CFG_FILE, 'r') as f:
+                coef = uad.get_coef()
+                csr = uad.get_csr()
+                for row in csv.DictReader(f):
+                    setattr(csr, f'c{row["coef"]}en', int(row['en'], 0))
+                    setattr(coef, f'c{row["coef"]}', int(row['value'], 0))
+            uad.set_coef()
+            uad.set_csr()
+
+            # ---- CLEAR TAPS + INPUT BUFFER ----
+            csr.tclr = 1
+            csr.ibclr = 1
+            uad.set_csr()
+
+            # Read back to clear W1C bits
+            csr = uad.get_csr()
+
+            # ---- UNHALT FILTER ----
+            csr.halt = 0
+            uad.set_csr()
+
+            # ---- READ INPUT VECTOR ----
+            sig_in = []
+            with open(VEC_FILE, 'r') as f:
+                for line in f.readlines():
+                    sig_in.append(int(line, 0))
+
+            # ---- DRIVE SIGNAL ----
+            sig_out = []
+            for samp in sig_in:
+                sig_out.append(uad.drive_signal(samp))
+
+            return sig_in, sig_out
+
+        # ---- RUN GOLDEN ----
+        print('>> Running golden model')
+        golden_in, golden_out = run_instance('golden')
+
+        # ---- RUN IMPLEMENTATION ----
+        print(f'>> Running {args.instance}')
+        impl_in, impl_out = run_instance(args.instance)
+
+        # ---- COMPARE OUTPUTS ----
+        passed = True
+        for i, (g, m) in enumerate(zip(golden_out, impl_out)):
+            if g != m:
+                print(f'[MISMATCH] Sample {i}: golden={hex(g)}, impl={hex(m)}')
+                passed = False
+                break
+
+        print('\n==================== TC5 RESULT ====================')
+        print('Total samples:', len(golden_out))
+
+        if passed:
+            print(f'[PASS] {args.instance} matches golden output')
+        else:
+            print(f'[FAIL] {args.instance} does NOT match golden output')
+
+        # ---- OPTIONAL PLOT ----
+        if args.plot:
+            plt.plot(
+                [i for i in range(len(golden_in))],
+                [twos_comp(x) for x in golden_in],
+                label='Input',
+                drawstyle='steps-post'
+            )
+            plt.plot(
+                [i for i in range(len(golden_out))],
+                [twos_comp(x) for x in golden_out],
+                label='Golden Output',
+                drawstyle='steps-post'
+            )
+            plt.plot(
+                [i for i in range(len(impl_out))],
+                [twos_comp(x) for x in impl_out],
+                label=f'{args.instance} Output',
+                drawstyle='steps-post'
+            )
+            plt.xlabel('Sample')
+            plt.ylabel('Value')
+            plt.title('TC5: Signal Processing Comparison')
+            plt.legend()
+            plt.show()
+
+        print('===================================================')
+
+
 
 
 
