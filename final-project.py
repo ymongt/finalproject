@@ -487,7 +487,6 @@ def main():
             print("\n>> TC4: FAIL")
         print("===================================================")
 
-
     elif args.test == 'tc5':
         print('Running Testcase 5: Signal processing')
 
@@ -495,10 +494,10 @@ def main():
             print('[ERROR] Please provide input vector file using -f')
             return
 
-        CFG_FILE = 'p0.cfg'   # coefficient config
-        VEC_FILE = args.file # input vector
+        VEC_FILE = args.file
+        CFG_FILES = args.cfg  # list of CFG files
 
-        def run_instance(instance_name):
+        def run_instance(instance_name, cfg_file):
             # Resolve path
             if platform.system().lower() == 'windows':
                 uad_path = f'.\\{instance_name}.exe'
@@ -518,7 +517,7 @@ def main():
             uad.set_csr()
 
             # ---- LOAD COEFFICIENTS ----
-            with open(CFG_FILE, 'r') as f:
+            with open(cfg_file, 'r') as f:
                 coef = uad.get_coef()
                 csr = uad.get_csr()
                 for row in csv.DictReader(f):
@@ -552,67 +551,60 @@ def main():
 
             return sig_in, sig_out
 
-        # ---- RUN GOLDEN ----
-        print('>> Running golden model')
-        golden_in, golden_out = run_instance('golden')
+        # ---- LOOP OVER EACH CFG FILE ----
+        for cfg_file in CFG_FILES:
+            print(f'\n==================== Using CFG: {cfg_file} ====================\n')
 
-        # ---- RUN IMPLEMENTATION ----
-        print(f'>> Running {args.instance}')
-        impl_in, impl_out = run_instance(args.instance)
+            # ---- RUN GOLDEN ----
+            print('>> Running golden model')
+            golden_in, golden_out = run_instance('golden', cfg_file)
 
-        # ---- COMPARE OUTPUTS ----
-        passed = True
-        for i, (g, m) in enumerate(zip(golden_out, impl_out)):
-            if g != m:
-                print(f'[MISMATCH] Sample {i}: golden={hex(g)}, impl={hex(m)}')
-                passed = False
-                break
+            # ---- RUN IMPLEMENTATIONS ----
+            for impl_name in ['impl0', 'impl1', 'impl2', 'impl3', 'impl4', 'impl5']:
+                print(f'>> Running {impl_name}')
+                impl_in, impl_out = run_instance(impl_name, cfg_file)
 
-        print('\n==================== TC5 RESULT ====================')
-        print('Total samples:', len(golden_out))
+                # ---- COMPARE OUTPUTS ----
+                passed = True
+                for i, (g, m) in enumerate(zip(golden_out, impl_out)):
+                    if g != m:
+                        print(f'[MISMATCH] Sample {i}: golden={hex(g)}, {impl_name}={hex(m)}')
+                        passed = False
+                        break
 
-        if passed:
-            print(f'[PASS] {args.instance} matches golden output')
-        else:
-            print(f'[FAIL] {args.instance} does NOT match golden output')
+                print(f'\n>>> {impl_name} vs golden: {"PASS" if passed else "FAIL"}\n')
 
-        # ---- OPTIONAL PLOT ----
-        if args.plot:
-            plt.plot(
-                [i for i in range(len(golden_in))],
-                [twos_comp(x) for x in golden_in],
-                label='Input',
-                drawstyle='steps-post'
-            )
-            plt.plot(
-                [i for i in range(len(golden_out))],
-                [twos_comp(x) for x in golden_out],
-                label='Golden Output',
-                drawstyle='steps-post'
-            )
-            plt.plot(
-                [i for i in range(len(impl_out))],
-                [twos_comp(x) for x in impl_out],
-                label=f'{args.instance} Output',
-                drawstyle='steps-post'
-            )
-            plt.xlabel('Sample')
-            plt.ylabel('Value')
-            plt.title('TC5: Signal Processing Comparison')
-            plt.legend()
-            plt.show()
+                # ---- OPTIONAL PLOT ----
+             # ---- OPTIONAL PLOT ----
+            if args.plot:
+                plt.figure(figsize=(12, 5))
+                
+                # Plot input once
+                plt.plot([i for i in range(len(golden_in))],
+                        [twos_comp(x) for x in golden_in],
+                        label='Input', drawstyle='steps-post', color='black', linestyle='--')
+                
+                # Plot golden output
+                plt.plot([i for i in range(len(golden_out))],
+                        [twos_comp(x) for x in golden_out],
+                        label='Golden Output', drawstyle='steps-post', color='green', linewidth=2)
+                
+                # Plot all implementations
+                colors = ['red', 'blue', 'orange', 'purple', 'brown', 'cyan']
+                for idx, impl_name in enumerate(['impl0', 'impl1', 'impl2', 'impl3', 'impl4', 'impl5']):
+                    impl_in, impl_out = run_instance(impl_name, cfg_file)
+                    plt.plot([i for i in range(len(impl_out))],
+                            [twos_comp(x) for x in impl_out],
+                            label=f'{impl_name} Output', drawstyle='steps-post', color=colors[idx])
+                
+                plt.xlabel('Sample')
+                plt.ylabel('Value')
+                plt.title(f'TC5: Signal Processing - CFG {cfg_file}')
+                plt.legend()
+                plt.tight_layout()
+                plt.show()
 
-        print('===================================================')
-
-
-
-
-
-
-
-
-
-
+            print(f'==================== End of CFG: {cfg_file} ====================\n')
 
 
 
